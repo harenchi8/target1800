@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#111827" />
+    <title>英単語学習（target1800）</title>
+    <link rel="manifest" href="./manifest.json" />
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body data-theme="school">
+    <noscript>このアプリを使うには JavaScript を有効にしてください。</noscript>
+    <!-- HTMLリンター向け（SPAの hash ルート用アンカー＆見出し） -->
+    <h1 class="srOnly">英単語学習（target1800）</h1>
+    <div id="/home" class="srOnly"></div>
+    <div id="/analysis" class="srOnly"></div>
+    <div id="/settings" class="srOnly"></div>
+    <div id="app" class="app">
+      <header class="appHeader">
+        <div class="appHeader__left">
+          <a class="brand" href="#/home" aria-label="ホームへ">target1800</a>
+        </div>
+        <nav class="appHeader__right" aria-label="メインメニュー">
+          <a class="navLink" href="#/home">ホーム</a>
+          <a class="navLink" href="#/analysis">分析</a>
+          <a class="navLink" href="#/settings">設定</a>
+        </nav>
+      </header>
+
+      <main id="main" class="main" tabindex="-1"></main>
+
+      <footer class="footer">
+        <span class="muted">オフライン対応 / 端末内保存（IndexedDB）</span>
+      </footer>
+    </div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="./src/app.js"></script>
+  </body>
+</html>
+
+

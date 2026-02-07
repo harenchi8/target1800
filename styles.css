@@ -1,0 +1,246 @@
+:root{
+  /* 中学生に馴染みやすい「ノート/教科書」系（ライト）をデフォルトに */
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --panel2:#f1f5f9;
+  --text:#0f172a;
+  /* mutedも十分なコントラストを確保（白背景に対して4.5:1以上を意識） */
+  --muted:#334155;
+  --border: rgba(15,23,42,.12);
+  --brand:#2563eb;
+  --ok:#16a34a;
+  --warn:#d97706;
+  --bad:#dc2626;
+  --shadow: 0 10px 24px rgba(15,23,42,.10);
+  --radius: 16px;
+}
+
+/* ダークテーマ（旧デザインを維持） */
+body[data-theme="dark"]{
+  --bg: #0b1220;
+  --panel: #111827;
+  --panel2:#0f172a;
+  --text:#e5e7eb;
+  --muted:#9ca3af;
+  --border: rgba(255,255,255,.10);
+  --brand:#60a5fa;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --bad:#ef4444;
+  --shadow: 0 10px 30px rgba(0,0,0,.35);
+}
+
+*{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background: var(--bg);
+  color:var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  line-height:1.5;
+}
+
+/* ノート風（白背景 + 罫線のみ） */
+body[data-theme="school"]{
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      #ffffff 0px,
+      #ffffff 24px,
+      rgba(37,99,235,.12) 25px,
+      #ffffff 26px
+    );
+}
+
+a{ color:inherit; text-decoration:none; }
+button, input, select, textarea{ font:inherit; }
+
+.app{
+  min-height:100%;
+  display:flex;
+  flex-direction:column;
+}
+
+.appHeader{
+  position:sticky;
+  top:0;
+  z-index:10;
+  backdrop-filter: blur(10px);
+  background: color-mix(in oklab, var(--panel) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 16px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.brand{
+  font-weight:800;
+  letter-spacing:.2px;
+  color:var(--brand);
+}
+.appHeader__right{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+.navLink{
+  color:var(--muted);
+  padding:8px 10px;
+  border-radius:999px;
+}
+.navLink:hover{ background: rgba(255,255,255,.06); color:var(--text); }
+body:not([data-theme="dark"]) .navLink:hover{
+  background: rgba(15,23,42,.06);
+}
+
+.main{
+  width:min(920px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+  flex:1;
+}
+.footer{
+  width:min(920px, 100%);
+  margin: 0 auto;
+  padding: 12px 16px 18px;
+  color: var(--muted);
+}
+
+.card{
+  /* コンテンツ領域は「ベタ」にして可読性優先 */
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+.stack{ display:flex; flex-direction:column; gap:12px; }
+.row{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+.grow{ flex:1; }
+.muted{ color: var(--muted); }
+
+.h1{ font-size: 22px; font-weight: 800; margin: 0 0 6px; }
+.h2{ font-size: 16px; font-weight: 900; margin: 0 0 6px; color: var(--text); }
+.p{ margin:0; color: var(--muted); }
+
+.btn{
+  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--panel) 88%, white);
+  color: var(--text);
+  padding: 12px 14px;
+  border-radius: 12px;
+  cursor:pointer;
+  min-height: 44px;
+  box-shadow: 0 6px 14px rgba(15,23,42,.08);
+}
+.btn:hover{ filter: brightness(1.02); }
+.btn:disabled{ opacity:.5; cursor:not-allowed; }
+.btnPrimary{ background: color-mix(in oklab, var(--brand) 18%, var(--panel)); border-color: color-mix(in oklab, var(--brand) 40%, var(--border)); }
+.btnOk{ background: color-mix(in oklab, var(--ok) 16%, var(--panel)); border-color: color-mix(in oklab, var(--ok) 40%, var(--border)); }
+.btnWarn{ background: color-mix(in oklab, var(--warn) 16%, var(--panel)); border-color: color-mix(in oklab, var(--warn) 40%, var(--border)); }
+.btnBad{ background: color-mix(in oklab, var(--bad) 14%, var(--panel)); border-color: color-mix(in oklab, var(--bad) 40%, var(--border)); }
+
+.pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border:1px solid var(--border);
+  background: color-mix(in oklab, var(--panel2) 75%, transparent);
+  color: var(--muted);
+}
+.grid2{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 760px){
+  .grid2{ grid-template-columns: 1fr 1fr; }
+}
+
+.field label{ display:block; font-weight:700; margin: 0 0 6px; }
+.field input, .field select, .field textarea{
+  width:100%;
+  background: color-mix(in oklab, var(--panel2) 70%, white);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 12px 12px;
+  border-radius: 12px;
+}
+.field textarea{ min-height: 84px; resize:vertical; }
+.help{ font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+.sep{ height:1px; background: var(--border); margin: 8px 0; }
+.kbd{
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 8px;
+  border:1px solid var(--border);
+  background: rgba(0,0,0,.22);
+  color: var(--muted);
+}
+
+.toast{
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100% - 24px));
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.toast.show{ opacity: 1; }
+
+.mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+.word{
+  font-size: 28px;
+  font-weight: 900;
+  letter-spacing: .3px;
+}
+.phonetic{ color: var(--muted); font-weight:700; }
+
+.preline{ white-space: pre-line; }
+
+.markOk{ color: #2563eb; font-weight: 900; }
+.markBad{ color: #dc2626; font-weight: 900; }
+.markPartial{ color: #d97706; font-weight: 900; }
+
+.iconBtn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(15,23,42,.08);
+}
+.iconBtn:hover{ filter: brightness(1.02); }
+.iconBtn:disabled{ opacity: .5; cursor: not-allowed; }
+.iconBtn svg{ width: 20px; height: 20px; fill: var(--brand); }
+
+.srOnly{
+  position:absolute !important;
+  width:1px !important;
+  height:1px !important;
+  padding:0 !important;
+  margin:-1px !important;
+  overflow:hidden !important;
+  clip:rect(0, 0, 0, 0) !important;
+  white-space:nowrap !important;
+  border:0 !important;
+}
+
+
