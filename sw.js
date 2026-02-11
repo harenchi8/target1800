@@ -1,5 +1,5 @@
-// CSS/JS更新が反映されやすいようにバージョンを上げる
-const CACHE_NAME = "target1800-cache-v2";
+// ユーザー機能追加によりバージョンを上げる
+const CACHE_NAME = "target1800-cache-v4";
 
 const APP_SHELL = [
   "./",
@@ -15,7 +15,9 @@ const APP_SHELL = [
   "./src/data.js",
   "./src/db.js",
   "./src/srs.js",
-  "./src/logic.js"
+  "./src/logic.js",
+  "./src/sync.js",
+  "./src/profiles.js"
 ];
 
 self.addEventListener("install", (event) => {

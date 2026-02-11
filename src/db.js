@@ -1,5 +1,8 @@
-const DB_NAME = "target1800";
+const DB_BASE = "target1800";
 const DB_VERSION = 1;
+
+let activeDbName = DB_BASE;
+let dbInstance = null;
 
 function reqToPromise(req) {
   return new Promise((resolve, reject) => {
@@ -17,10 +20,42 @@ function txDone(tx) {
 }
 
 let dbPromise = null;
+export function getActiveDbName() {
+  return activeDbName;
+}
+
+export function setActiveProfileId(profileId) {
+  // 既存データ互換: profileId==="legacy" は従来のDB名を使う
+  const nextName = profileId === "legacy" ? DB_BASE : `${DB_BASE}-${profileId}`;
+  if (nextName === activeDbName) return;
+  activeDbName = nextName;
+  try {
+    dbInstance?.close?.();
+  } catch {
+    // ignore
+  }
+  dbInstance = null;
+  dbPromise = null;
+}
+
+export function deleteProfileDb(profileId) {
+  const name = profileId === "legacy" ? DB_BASE : `${DB_BASE}-${profileId}`;
+  return new Promise((resolve, reject) => {
+    try {
+      const req = indexedDB.deleteDatabase(name);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+      req.onblocked = () => resolve();
+    } catch (e) {
+      reject(e);
+    }
+  });
+}
+
 export function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    const req = indexedDB.open(activeDbName, DB_VERSION);
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains("progress")) {
@@ -32,7 +67,10 @@ export function openDb() {
         db.createObjectStore("settings", { keyPath: "key" });
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      dbInstance = req.result;
+      resolve(dbInstance);
+    };
     req.onerror = () => reject(req.error);
   });
   return dbPromise;
@@ -41,6 +79,7 @@ export function openDb() {
 export function createEmptyProgress(wordId) {
   return {
     wordId,
+    updatedAt: null,
     meaningCorrect: 0,
     meaningPartial: 0,
     meaningWrong: 0,
@@ -75,6 +114,14 @@ export async function putProgress(progress) {
   await txDone(tx);
 }
 
+export async function putProgressMany(progressList) {
+  const db = await openDb();
+  const tx = db.transaction(["progress"], "readwrite");
+  const store = tx.objectStore("progress");
+  for (const p of progressList) store.put(p);
+  await txDone(tx);
+}
+
 export async function getProgressMap(wordIds) {
   const db = await openDb();
   const tx = db.transaction(["progress"], "readonly");
@@ -103,6 +150,16 @@ export async function setSetting(key, value) {
   const tx = db.transaction(["settings"], "readwrite");
   const store = tx.objectStore("settings");
   store.put({ key, value });
+  await txDone(tx);
+}
+
+export async function setSettingsMany(obj) {
+  const db = await openDb();
+  const tx = db.transaction(["settings"], "readwrite");
+  const store = tx.objectStore("settings");
+  for (const [key, value] of Object.entries(obj || {})) {
+    store.put({ key, value });
+  }
   await txDone(tx);
 }
 

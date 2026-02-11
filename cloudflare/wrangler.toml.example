@@ -1,0 +1,9 @@
+name = "target1800-sync"
+main = "worker.js"
+compatibility_date = "2026-02-11"
+
+kv_namespaces = [
+  { binding = "SYNC_KV", id = "REPLACE_WITH_YOUR_KV_ID" }
+]
+
+

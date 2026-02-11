@@ -18,6 +18,7 @@ export function nextIsoForX(now, policy) {
 
 export function applyMeaningGrade(progress, grade, now, settings) {
   const p = { ...progress };
+  p.updatedAt = now.toISOString();
   p.meaningLastAt = now.toISOString();
   if (grade === "o") {
     p.meaningStreak = (p.meaningStreak || 0) + 1;
@@ -37,6 +38,7 @@ export function applyMeaningGrade(progress, grade, now, settings) {
 
 export function applySpellingGrade(progress, grade, now, settings) {
   const p = { ...progress };
+  p.updatedAt = now.toISOString();
   p.spellingLastAt = now.toISOString();
   if (grade === "o") {
     p.spellingStreak = (p.spellingStreak || 0) + 1;

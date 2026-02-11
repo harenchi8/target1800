@@ -313,3 +313,43 @@ python3 -m http.server 5173
 
 現在の `manifest.json` はSVGアイコンのみです。Android/デスクトップは概ねOKですが、端末/ブラウザによっては **PNG(192/512)** を推奨します（必要なら追加します）。
 
+### 端末間の引き継ぎ（合言葉同期 / Cloudflare Workers）
+
+ログインなしで端末間引き継ぎをするために、**Cloudflare Workers + KV** を「同期保存先」にできます。
+
+#### 1) Cloudflare側（Workers + KV）
+
+- `cloudflare/worker.js` をデプロイします
+- KVを1つ作り、`SYNC_KV` としてバインドします
+
+`wrangler` を使う場合:
+
+```bash
+cd cloudflare
+cp wrangler.toml.example wrangler.toml
+# wrangler.toml の KV id を自分のものに差し替え
+wrangler deploy
+```
+
+デプロイ後のURL（例: `https://xxxx.your-subdomain.workers.dev`）を控えます。
+
+#### 2) アプリ側（設定）
+
+アプリの `設定 → 端末間同期（合言葉）` に
+
+- 同期先URL（WorkersのURL）
+- 合言葉（長め推奨）
+
+を入力し、「今すぐ同期」または「クラウドから復元」を使います。
+
+※同期データは端末側で暗号化し、クラウドには暗号文だけを保存します。
+
+### 複数ユーザー（端末内）
+
+`設定 → ユーザー` からユーザーを追加/切替できます。ユーザーごとに
+
+- 学習データ（進捗）
+- 合言葉同期設定
+
+が分かれます。
+

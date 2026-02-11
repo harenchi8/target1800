@@ -4,6 +4,13 @@ export const DEFAULT_SETTINGS = {
   showExampleOnMeaningAnswer: true,
   showNotesOnMeaningAnswer: true,
   theme: "school", // school | dark
+  // 端末間同期（合言葉）
+  // 同期先URLは固定（ユーザー入力不要）
+  syncEndpoint: "https://target1800.harench8.workers.dev",
+  syncKey: "", // 合言葉（推測されにくい長め推奨）
+  syncAuto: true, // 学習の区切りで自動同期
+  syncLastAt: null,
+  syncLastError: null,
   meaningXNext: "today", // today | tomorrow
   spellingXNext: "today", // today | tomorrow
   spellingPromptMode: "meaning", // meaning | cloze(未実装)
@@ -11,7 +18,10 @@ export const DEFAULT_SETTINGS = {
 };
 
 export function mergeSettings(raw) {
-  return { ...DEFAULT_SETTINGS, ...(raw || {}) };
+  const merged = { ...DEFAULT_SETTINGS, ...(raw || {}) };
+  // 以前の保存値が空文字でも、固定URLを優先
+  if (!merged.syncEndpoint) merged.syncEndpoint = DEFAULT_SETTINGS.syncEndpoint;
+  return merged;
 }
 
 export function normalizeWord(w) {

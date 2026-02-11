@@ -1,9 +1,11 @@
 import { loadWords } from "./data.js";
-import { clearAllData, createEmptyProgress, getAllProgress, getAllSettings, getProgress, getProgressMap, putProgress, setSetting } from "./db.js";
+import { clearAllData, createEmptyProgress, deleteProfileDb, getAllProgress, getAllSettings, getProgress, getProgressMap, putProgress, setActiveProfileId, setSetting } from "./db.js";
 import { parseHash, onRouteChange, go } from "./router.js";
 import { clamp, el, fmtDateTime, qs, setMain, toast } from "./ui.js";
 import { applyMeaningGrade, applySpellingGrade, scoreMeaning, scoreSpelling } from "./srs.js";
 import { buildCandidateWords, buildReviewCandidates, mergeSettings, normalizeWord, orderWords, summarizeDue } from "./logic.js";
+import { createSyncManager, isSyncConfigured } from "./sync.js";
+import { addProfile, loadProfiles, removeProfile, setCurrentProfileId } from "./profiles.js";
 
 const SESSION_KEY = "t1800_session_v1";
 
@@ -383,10 +385,11 @@ async function learnScreen(ctx) {
       {
         class: "btn",
         onclick: async () => {
-          const next = { ...p, isFavorite: !p.isFavorite };
+          const next = { ...p, isFavorite: !p.isFavorite, updatedAt: new Date().toISOString() };
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isFavorite ? "お気に入りに追加" : "お気に入りを解除");
+          sync?.schedulePush("after-flag");
           render();
         }
       },
@@ -397,10 +400,11 @@ async function learnScreen(ctx) {
       {
         class: "btn",
         onclick: async () => {
-          const next = { ...p, isLearned: !p.isLearned };
+          const next = { ...p, isLearned: !p.isLearned, updatedAt: new Date().toISOString() };
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isLearned ? "「覚えた」にチェック" : "「覚えた」を解除");
+          sync?.schedulePush("after-flag");
           render();
         }
       },
@@ -473,6 +477,7 @@ async function learnScreen(ctx) {
         onclick: () => {
           clearSession();
           toast("セッションを終了しました");
+          sync?.schedulePush("after-session-end");
           go("#/home");
         }
       },
@@ -550,6 +555,7 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "o", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          sync?.schedulePush("after-meaning-grade");
           next();
         }
       },
@@ -566,6 +572,7 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "triangle", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          sync?.schedulePush("after-meaning-grade");
           next();
         }
       },
@@ -582,6 +589,7 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "x", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          sync?.schedulePush("after-meaning-grade");
           next();
         }
       },
@@ -720,6 +728,7 @@ async function spellingTestScreen(ctx) {
     const p1 = applySpellingGrade(p0, isCorrect ? "o" : "x", now, ctx.settings);
     await putProgress(p1);
     ctx.progressById.set(wordId, p1);
+    sync?.schedulePush("after-spelling-grade");
   }
 
   checkBtn.addEventListener("click", async () => {
@@ -742,6 +751,7 @@ async function spellingTestScreen(ctx) {
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
       clearSession();
+      sync?.schedulePush("after-session-end");
       go("#/home");
       return;
     }
@@ -874,6 +884,8 @@ function analysisScreen(ctx) {
 
 function settingsScreen(ctx) {
   const s = ctx.settings;
+  const profiles = profilesState?.profiles || [{ id: "legacy", name: "ユーザー1（この端末）" }];
+  const currentProfileId = profilesState?.currentId || "legacy";
 
   function toggleRow(label, key) {
     const input = el("input", { type: "checkbox", checked: s[key] ? "checked" : null });
@@ -881,6 +893,7 @@ function settingsScreen(ctx) {
       s[key] = !!input.checked;
       await setSetting(key, s[key]);
       toast("設定を保存しました");
+      if (key.startsWith("sync")) sync?.schedulePush("after-setting");
     });
     return el("label", { class: "row", style: "gap:10px;" }, input, el("span", {}, label));
   }
@@ -895,13 +908,172 @@ function settingsScreen(ctx) {
       await setSetting(key, s[key]);
       if (key === "theme") applyTheme(s[key]);
       toast("設定を保存しました");
+      if (key.startsWith("sync")) sync?.schedulePush("after-setting");
     });
     return el("div", { class: "field" }, el("label", {}, label), sel);
+  }
+
+  function textRow(label, key, placeholder = "") {
+    const input = el("input", { type: "text", value: s[key] || "", placeholder });
+    input.addEventListener("change", async () => {
+      s[key] = input.value;
+      await setSetting(key, s[key]);
+      toast("設定を保存しました");
+    });
+    return el("div", { class: "field" }, el("label", {}, label), input);
+  }
+
+  function passwordRow(label, key, placeholder = "") {
+    const input = el("input", { type: "password", value: s[key] || "", placeholder });
+    input.addEventListener("change", async () => {
+      s[key] = input.value;
+      await setSetting(key, s[key]);
+      toast("設定を保存しました");
+    });
+    return el(
+      "div",
+      { class: "field" },
+      el("label", {}, label),
+      input,
+      el("div", { class: "help" }, "※合言葉は推測されにくい長めの文字列にしてください。")
+    );
   }
 
   const card = el(
     "div",
     { class: "stack" },
+    el(
+      "div",
+      { class: "card stack" },
+      el("div", { class: "h2" }, "ユーザー"),
+      el(
+        "div",
+        { class: "stack" },
+        ...profiles.map((p) => {
+          const radio = el("input", { type: "radio", name: "profile", checked: p.id === currentProfileId ? "checked" : null });
+          radio.addEventListener("change", async () => {
+            if (!radio.checked) return;
+            profilesState = setCurrentProfileId(loadProfiles(), p.id);
+            setActiveProfileId(p.id);
+            ctxCache = null;
+            toast(`ユーザー切替: ${p.name}`);
+            await render();
+          });
+          return el("label", { class: "row", style: "gap:10px;" }, radio, el("span", {}, p.name));
+        })
+      ),
+      el(
+        "div",
+        { class: "row" },
+        el(
+          "button",
+          {
+            class: "btn btnPrimary",
+            type: "button",
+            onclick: async () => {
+              const name = prompt("追加するユーザー名（例：太郎）");
+              if (name === null) return;
+              profilesState = addProfile(loadProfiles(), name);
+              setActiveProfileId(profilesState.currentId);
+              ctxCache = null;
+              toast("ユーザーを追加しました。合言葉を設定してください。");
+              await render();
+            }
+          },
+          "ユーザーを追加"
+        ),
+        el(
+          "button",
+          {
+            class: "btn btnBad",
+            type: "button",
+            disabled: profiles.length <= 1 ? "disabled" : null,
+            onclick: async () => {
+              const p = profiles.find((x) => x.id === currentProfileId);
+              if (!p) return;
+              if (!confirm(`ユーザー「${p.name}」を削除します（この端末の学習データも削除）。よろしいですか？`)) return;
+              // legacyは削除不可（既存DB保護）
+              if (p.id === "legacy") {
+                toast("ユーザー1は削除できません");
+                return;
+              }
+              await deleteProfileDb(p.id);
+              profilesState = removeProfile(loadProfiles(), p.id);
+              setActiveProfileId(profilesState.currentId);
+              ctxCache = null;
+              toast("ユーザーを削除しました");
+              await render();
+            }
+          },
+          "このユーザーを削除"
+        )
+      ),
+      el("div", { class: "help" }, "※ユーザーごとに学習データ・合言葉同期設定が別になります。")
+    ),
+    el(
+      "div",
+      { class: "card stack" },
+      el("div", { class: "h2" }, "端末間同期（合言葉）"),
+      el("div", { class: "p" }, `同期先: ${s.syncEndpoint}`),
+      passwordRow("合言葉", "syncKey", "この端末に保存されます"),
+      toggleRow("学習の区切りで自動同期する（おすすめ）", "syncAuto"),
+      el(
+        "div",
+        { class: "row" },
+        el(
+          "button",
+          {
+            class: "btn btnPrimary",
+            type: "button",
+            onclick: async () => {
+              try {
+                if (!isSyncConfigured(s)) {
+                  toast("同期先URLと合言葉を設定してください");
+                  return;
+                }
+                await sync?.pushNow("manual");
+              } catch (e) {
+                const msg = e?.message || String(e);
+                await setSetting("syncLastError", msg);
+                s.syncLastError = msg;
+                toast(`同期失敗: ${msg}`);
+              } finally {
+                render();
+              }
+            }
+          },
+          "今すぐ同期"
+        ),
+        el(
+          "button",
+          {
+            class: "btn",
+            type: "button",
+            onclick: async () => {
+              if (!confirm("クラウドのデータを取り込みます（ローカルとマージ）。よろしいですか？")) return;
+              try {
+                if (!isSyncConfigured(s)) {
+                  toast("同期先URLと合言葉を設定してください");
+                  return;
+                }
+                await sync?.pullAndRestore();
+              } catch (e) {
+                const msg = e?.message || String(e);
+                await setSetting("syncLastError", msg);
+                s.syncLastError = msg;
+                toast(`復元失敗: ${msg}`);
+              } finally {
+                ctxCache = null; // 設定/進捗を読み直す
+                await render();
+              }
+            }
+          },
+          "クラウドから復元"
+        )
+      ),
+      el("div", { class: "help" }, "同期データは端末側で暗号化して保存します（クラウド側に合言葉は送信しません）。"),
+      el("div", { class: "help" }, `最終同期: ${fmtDateTime(s.syncLastAt)} / エラー: ${s.syncLastError || "なし"}`)
+    ),
     el(
       "div",
       { class: "card stack" },
@@ -981,11 +1153,24 @@ function notFoundScreen() {
 }
 
 let ctxCache = null;
+let sync = null;
+let profilesState = null;
 async function render() {
   try {
     if (!ctxCache) {
       setMain(layout("読み込み中…", el("div", { class: "card stack" }, el("div", { class: "p" }, "初回は少し時間がかかることがあります。"))));
+      profilesState = loadProfiles();
+      setActiveProfileId(profilesState.currentId);
       ctxCache = await loadAppContext();
+      sync = createSyncManager({
+        getSettings: () => ctxCache?.settings,
+        setSettingValue: async (k, v) => {
+          if (!ctxCache?.settings) return;
+          ctxCache.settings[k] = v;
+          await setSetting(k, v);
+        },
+        toast
+      });
     }
     const ctx = ctxCache;
     const route = parseHash();
