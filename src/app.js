@@ -1,41 +1,14 @@
 import { loadWords } from "./data.js";
 import { addHistory, clearAllData, clearHistory, createEmptyProgress, deleteProfileDb, getAllProgress, getAllSettings, getProgress, getProgressMap, getRecentHistory, putProgress, setActiveProfileId, setSetting } from "./db.js";
 import { parseHash, onRouteChange, go } from "./router.js";
-import { clamp, el, fmtDateTime, praise, qs, setMain, toast, toastDanger } from "./ui.js";
+import { clamp, el, fmtDateTime, qs, setMain, toast, toastDanger } from "./ui.js";
 import { applyMeaningGrade, applySpellingGrade, scoreMeaning, scoreSpelling } from "./srs.js";
 import { buildCandidateWords, buildReviewCandidates, mergeSettings, normalizeWord, orderWords, summarizeDue } from "./logic.js";
 import { createSyncManager, isSyncConfigured } from "./sync.js";
 import { addProfile, loadProfiles, removeProfile, setCurrentProfileId } from "./profiles.js";
+import { createChirnoController } from "./chirno.js";
 
 const SESSION_KEY = "t1800_session_v1";
-
-function pick(arr) {
-  return arr[Math.floor(Math.random() * arr.length)];
-}
-
-function praiseOpen() {
-  praise(pick(["アプリひらけてえらい！", "今日も来てくれてえらい！", "開けた時点で天才！"]));
-}
-
-function praiseSessionStart(mode) {
-  const label = mode === "learn" ? "覚える" : mode === "review" ? "復習" : "テスト";
-  praise(pick([`${label}を始められてえらい！`, "やる気出してえらい！", "その一歩がすごい！"]));
-}
-
-function praiseMeaningGrade(grade) {
-  if (grade === "o") return praise(pick(["正解えらい！", "思い出せてえらい！", "最高！その調子！"]));
-  if (grade === "triangle") return praise(pick(["△にできてえらい！成長してる！", "あいまいでもOK！続けてえらい！", "正直に自己採点できてえらい！"]));
-  return praise(pick(["間違えても挑戦えらい！", "思い出そうとしたのがえらい！", "次で取り返せる！えらい！"]));
-}
-
-function praiseSpelling(isCorrect) {
-  if (isCorrect) return praise(pick(["スペル正解えらい！", "一発で当ててえらい！", "しっかり書けてえらい！"]));
-  return praise(pick(["間違えても入力できてえらい！", "チャレンジえらい！次は当たる！", "最後までやるのがえらい！"]));
-}
-
-function praiseSessionDone() {
-  praise(pick(["最後までできてえらい！", "セッション完了えらい！", "今日の自分に勝った！えらい！"]));
-}
 
 async function logHistory(type, title, meta = {}) {
   try {
@@ -48,6 +21,25 @@ async function logHistory(type, title, meta = {}) {
   } catch {
     // ignore
   }
+}
+
+let chirno = null;
+function ensureChirno(ctx) {
+  if (chirno) return chirno;
+  chirno = createChirnoController({ getSettings: () => ctx?.settings });
+  return chirno;
+}
+
+function parseLevelNum(levelStr) {
+  const m = String(levelStr || "").match(/LEVEL\s*([0-9]+)/i);
+  return m ? Number(m[1]) : 0;
+}
+
+function sessionCorrectStreak(session, isCorrect) {
+  const s = session || {};
+  const n = Number(s.correctStreak || 0);
+  s.correctStreak = isCorrect ? n + 1 : 0;
+  return s.correctStreak;
 }
 
 const doubleTapMap = new Map();
@@ -388,7 +380,7 @@ function homeScreen(ctx) {
             spellingWasCorrect: null
           };
           saveSession(session);
-          praiseSessionStart("today");
+          ensureChirno(ctx).say("cheer", { emotionKey: "cheer" });
           logHistory("session_start", "今日の学習開始", { mode: "today", count: plan.wordIds.length });
           go("#/test-meaning");
         }
@@ -557,7 +549,7 @@ function setupScreen(ctx, mode) {
           spellingWasCorrect: null
         };
         saveSession(session);
-        praiseSessionStart(mode);
+        ensureChirno(ctx).say("cheer", { emotionKey: "cheer" });
         logHistory("session_start", "セッション開始", { mode, runMode, count: picked.length, order, filters });
 
         if (mode === "learn") go("#/learn");
@@ -638,7 +630,7 @@ async function learnScreen(ctx) {
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isFavorite ? "お気に入りに追加" : "お気に入りを解除");
-          praise(next.isFavorite ? "お気に入りにできてえらい！" : "見直せてえらい！");
+          ensureChirno(ctx).say("doya", { emotionKey: "doya" });
           logHistory("flag_favorite", next.isFavorite ? "お気に入りに追加" : "お気に入りを解除", { wordId, word: word.word });
           sync?.schedulePush("after-flag");
           render();
@@ -655,7 +647,7 @@ async function learnScreen(ctx) {
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isLearned ? "「覚えた」にチェック" : "「覚えた」を解除");
-          praise(next.isLearned ? "覚えたにできてえらい！" : "調整できてえらい！");
+          ensureChirno(ctx).say("doya", { emotionKey: "doya" });
           logHistory("flag_learned", next.isLearned ? "「覚えた」にした" : "「覚えた」を解除", { wordId, word: word.word });
           sync?.schedulePush("after-flag");
           render();
@@ -810,7 +802,13 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "o", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
-          praiseMeaningGrade("o");
+          const streak = sessionCorrectStreak(session, true);
+          const lv = parseLevelNum(word.level);
+          const isHard = lv >= 4;
+          const wasWeak = (p0.meaningWrong || 0) >= 3 || (p0.meaningPartial || 0) >= 3;
+          if (streak >= 3) ensureChirno(ctx).say("super", { emotionKey: "super" });
+          else if (isHard || wasWeak) ensureChirno(ctx).say("surprise", { emotionKey: "surprise" });
+          else ensureChirno(ctx).say("doya", { emotionKey: "doya" });
           logHistory("meaning_grade", "意味テスト：○", { wordId, word: word.word, xpDelta: 5 });
           sync?.schedulePush("after-meaning-grade");
           next();
@@ -829,7 +827,8 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "triangle", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
-          praiseMeaningGrade("triangle");
+          sessionCorrectStreak(session, false);
+          ensureChirno(ctx).say("trouble", { emotionKey: "trouble" });
           logHistory("meaning_grade", "意味テスト：△", { wordId, word: word.word, xpDelta: 2 });
           sync?.schedulePush("after-meaning-grade");
           next();
@@ -848,7 +847,8 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "x", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
-          praiseMeaningGrade("x");
+          sessionCorrectStreak(session, false);
+          ensureChirno(ctx).say("trouble", { emotionKey: "trouble" });
           logHistory("meaning_grade", "意味テスト：×", { wordId, word: word.word, xpDelta: 1 });
           sync?.schedulePush("after-meaning-grade");
           next();
@@ -865,7 +865,9 @@ async function meaningTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
-      praiseSessionDone();
+      const emo = session.mode === "review" ? "guts" : "shy";
+      const cat = session.mode === "review" ? "guts" : "shy";
+      ensureChirno(ctx).say(cat, { emotionKey: emo });
       logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       clearSession();
       go("#/home");
@@ -1017,7 +1019,9 @@ async function spellingTestScreen(ctx) {
     }
     const isCorrect = user === normalizeWord(word.word);
     await commit(isCorrect);
-    praiseSpelling(isCorrect);
+    const streak = sessionCorrectStreak(session, isCorrect);
+    if (isCorrect && streak >= 3) ensureChirno(ctx).say("super", { emotionKey: "super" });
+    else ensureChirno(ctx).say(isCorrect ? "doya" : "trouble", { emotionKey: isCorrect ? "doya" : "trouble" });
     logHistory("spelling_grade", `綴りテスト：${isCorrect ? "○" : "×"}`, { wordId, word: word.word, xpDelta: isCorrect ? 6 : 1 });
     showResult(isCorrect);
   });
@@ -1029,7 +1033,9 @@ async function spellingTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
-      praiseSessionDone();
+      const emo = session.mode === "review" ? "guts" : "shy";
+      const cat = session.mode === "review" ? "guts" : "shy";
+      ensureChirno(ctx).say(cat, { emotionKey: emo });
       clearSession();
       sync?.schedulePush("after-session-end");
       logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
@@ -1237,6 +1243,9 @@ function settingsScreen(ctx) {
       await setSetting(key, s[key]);
       toast("設定を保存しました");
       if (key.startsWith("sync")) sync?.schedulePush("after-setting");
+      if (key === "chirnoEnabled") {
+        ensureChirno(ctx).setEnabled(!!s[key]);
+      }
     });
     return el("label", { class: "row", style: "gap:10px;" }, input, el("span", {}, label));
   }
@@ -1471,6 +1480,12 @@ function settingsScreen(ctx) {
     el(
       "div",
       { class: "card stack" },
+      el("div", { class: "h2" }, "ナビキャラ"),
+      toggleRow("チルノ表示（右下キャラとセリフ）", "chirnoEnabled")
+    ),
+    el(
+      "div",
+      { class: "card stack" },
       el("div", { class: "h2" }, "テーマ"),
       selectRow("見た目", "theme", [
         ["school", "ノート風（おすすめ）"],
@@ -1679,6 +1694,12 @@ async function render() {
     const ctx = ctxCache;
     const route = parseHash();
 
+    // HOME表示時は通常待機（セリフは出しすぎないようにレート制限側で制御）
+    if (route.path === "/home") {
+      ensureChirno(ctx).set("normal");
+      ensureChirno(ctx).say("normal", { emotionKey: "normal" });
+    }
+
     if (route.path === "/home") return void setMain(homeScreen(ctx));
     if (route.path === "/history") return void setMain(await historyScreen());
     if (route.path === "/analysis") return void setMain(analysisScreen(ctx));
@@ -1717,7 +1738,14 @@ async function main() {
   attachHeaderMenuEvents();
   renderHeaderProfileSwitcher();
   await render();
-  praiseOpen();
+  // HOME表示時：通常笑顔＋セリフ（レート制限あり）
+  try {
+    const ctx = ctxCache;
+    ensureChirno(ctx).set("normal");
+    ensureChirno(ctx).say("normal", { emotionKey: "normal" });
+  } catch {
+    // ignore
+  }
 
   // Keyboard shortcuts
   window.addEventListener("keydown", (e) => {

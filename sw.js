@@ -1,5 +1,5 @@
-// 警告トースト（赤）の反映を確実にするためバージョンを上げる
-const CACHE_NAME = "target1800-cache-v15";
+// ロゴ差し替えを確実に反映するためバージョンを上げる
+const CACHE_NAME = "target1800-cache-v20";
 
 const APP_SHELL = [
   "./",
@@ -8,6 +8,15 @@ const APP_SHELL = [
   "./manifest.json",
   "./assets/icon.svg",
   "./assets/icon-maskable.svg",
+  "./assets/logo.png",
+  "./assets/chara/image_1.png",
+  "./assets/chara/image_2.png",
+  "./assets/chara/image_3.png",
+  "./assets/chara/image_4.png",
+  "./assets/chara/image_5.png",
+  "./assets/chara/image_6.png",
+  "./assets/chara/image_7.png",
+  "./assets/chara/image_8.png",
   "./data/target1800.min.json",
   "./src/app.js",
   "./src/ui.js",
@@ -17,7 +26,8 @@ const APP_SHELL = [
   "./src/srs.js",
   "./src/logic.js",
   "./src/sync.js",
-  "./src/profiles.js"
+  "./src/profiles.js",
+  "./src/chirno.js"
 ];
 
 self.addEventListener("install", (event) => {

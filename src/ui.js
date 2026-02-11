@@ -69,35 +69,7 @@ export function toastDanger(message) {
   toast(message, { variant: "danger" });
 }
 
-let praiseTimer = null;
-let praiseQueue = [];
-let praiseShowing = false;
-
-function showNextPraise() {
-  const p = qs("#praise");
-  if (!p) return;
-  const msg = praiseQueue.shift();
-  if (!msg) {
-    praiseShowing = false;
-    return;
-  }
-  praiseShowing = true;
-  p.innerHTML = "";
-  p.appendChild(el("div", { class: "praise__text" }, msg));
-  p.classList.add("show");
-  if (praiseTimer) clearTimeout(praiseTimer);
-  praiseTimer = setTimeout(() => {
-    p.classList.remove("show");
-    setTimeout(showNextPraise, 160);
-  }, 2600);
-}
-
-export function praise(message) {
-  const msg = String(message || "").trim();
-  if (!msg) return;
-  praiseQueue.push(msg);
-  if (!praiseShowing) showNextPraise();
-}
+// ※褒め吹き出しは「チルノUI」に置き換えました（`src/chirno.js`）
 
 export function fmtDateTime(iso) {
   if (!iso) return "—";

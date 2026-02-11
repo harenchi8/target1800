@@ -19,7 +19,9 @@
     <div id="app" class="app">
       <header class="appHeader">
         <div class="appHeader__left">
-          <a class="brand" href="#/home" aria-label="ホームへ">target1800</a>
+          <a class="brand" href="#/home" aria-label="ホームへ">
+            <img class="brandLogo" src="./assets/logo.png" alt="target1800" />
+          </a>
         </div>
         <nav class="appHeader__right" aria-label="メインメニュー">
           <div class="headerProfile" aria-label="ユーザー切替">
@@ -47,7 +49,10 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
-    <div id="praise" class="praise" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="chirnoRoot" class="chirnoRoot" aria-hidden="true">
+      <div id="chirnoBubble" class="chirnoBubble" role="status" aria-live="polite" aria-atomic="true"></div>
+      <img id="chirnoImg" class="chirnoImg" src="./assets/chara/image_1.png" alt="" />
+    </div>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

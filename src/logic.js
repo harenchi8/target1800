@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = {
   showExampleOnMeaningAnswer: true,
   showNotesOnMeaningAnswer: true,
   theme: "school", // school | dark
+  chirnoEnabled: true,
   // 端末間同期（合言葉）
   // 同期先URLは固定（ユーザー入力不要）
   syncEndpoint: "https://target1800-sync.harench8.workers.dev",

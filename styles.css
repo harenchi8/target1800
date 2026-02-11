@@ -80,6 +80,13 @@ button, input, select, textarea{ font:inherit; }
   letter-spacing:.2px;
   color:var(--brand);
   white-space: nowrap;
+  display:inline-flex;
+  align-items:center;
+}
+.brandLogo{
+  height: 68px;
+  width: auto;
+  display:block;
 }
 .appHeader__right{
   display:flex;
@@ -143,6 +150,7 @@ body:not([data-theme="dark"]) .navLink:hover{
     padding: 10px 12px;
     gap: 8px;
   }
+  .brandLogo{ height: 34px; }
   .appHeader__right{ justify-content: flex-end; gap: 8px; }
   .profileSelect{
     max-width: 120px;
@@ -342,11 +350,50 @@ body:not([data-theme="dark"]) .navLink:hover{
   color: #b91c1c; /* 薄めの赤（警告） */
 }
 
-.praise{
+.chirnoRoot{
   position: fixed;
-  right: 16px;
-  bottom: 16px;
-  max-width: min(320px, calc(100% - 24px));
+  right: 10px;
+  bottom: 10px;
+  z-index: 9999;
+  pointer-events: none; /* UI操作を妨げない */
+}
+.chirnoImg{
+  width: 180px; /* 1.5倍（元120px想定） */
+  height: auto;
+  display:block;
+  filter: drop-shadow(0 12px 24px rgba(15,23,42,.22));
+}
+.chirnoImg.bounce{
+  animation: chirnoBounce .42s ease-out;
+}
+.chirnoImg.bounceSoft{
+  animation: chirnoBounceSoft 1.6s ease-in-out infinite;
+}
+@keyframes chirnoBounce{
+  0%   { transform: translateY(0) scaleX(1) scaleY(1); }
+  35%  { transform: translateY(-10px) scaleX(0.98) scaleY(1.03); }
+  70%  { transform: translateY(0) scaleX(1.04) scaleY(0.96); }
+  100% { transform: translateY(0) scaleX(1) scaleY(1); }
+}
+@keyframes chirnoBounceSoft{
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-4px); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce){
+  .chirnoImg.bounce, .chirnoImg.bounceSoft{ animation: none !important; }
+}
+
+.chirnoBubble{
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px); /* キャラの真上に配置 */
+  transform: translateY(10px);
+  width: auto;
+  max-width: min(420px, calc(100vw - 24px));
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+  scrollbar-width: none;
   padding: 12px 14px;
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -354,18 +401,17 @@ body:not([data-theme="dark"]) .navLink:hover{
   box-shadow: var(--shadow);
   color: var(--text);
   opacity: 0;
-  transform: translateY(10px);
-  pointer-events: none;
   transition: opacity .18s ease, transform .18s ease;
 }
-.praise.show{
+.chirnoBubble::-webkit-scrollbar{ display:none; }
+.chirnoBubble.show{
   opacity: 1;
   transform: translateY(0);
 }
-.praise::after{
+.chirnoBubble::after{
   content:"";
   position:absolute;
-  right: 18px;
+  right: 38px;
   bottom: -8px;
   width: 14px;
   height: 14px;
@@ -374,7 +420,20 @@ body:not([data-theme="dark"]) .navLink:hover{
   border-bottom: 1px solid var(--border);
   transform: rotate(45deg);
 }
-.praise__text{ font-weight: 800; }
+.chirnoBubble__text{
+  font-weight: 500;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
+@media (max-width: 420px){
+  .chirnoImg{ width: 138px; } /* 1.5倍（元92px想定） */
+  .chirnoBubble{
+    bottom: calc(100% + 8px);
+    max-width: min(360px, calc(100vw - 24px));
+    max-height: calc(100vh - 200px);
+  }
+}
 
 .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 .word{
