@@ -924,11 +924,15 @@ function settingsScreen(ctx) {
   }
 
   function passwordRow(label, key, placeholder = "") {
-    const input = el("input", { type: "password", value: s[key] || "", placeholder });
+    // 合言葉は保存されていても入力欄に埋め戻さない（切替時の混乱/覗き見対策）
+    const input = el("input", { type: "password", value: "", placeholder });
     input.addEventListener("change", async () => {
-      s[key] = input.value;
-      await setSetting(key, s[key]);
-      toast("設定を保存しました");
+      const v = String(input.value || "").trim();
+      if (!v) return;
+      s[key] = v;
+      await setSetting(key, v);
+      input.value = "";
+      toast("合言葉を更新しました");
     });
     return el(
       "div",
@@ -1020,6 +1024,7 @@ function settingsScreen(ctx) {
       { class: "card stack" },
       el("div", { class: "h2" }, "端末間同期（合言葉）"),
       el("div", { class: "p" }, `同期先: ${s.syncEndpoint}`),
+      el("div", { class: "p" }, `合言葉: ${s.syncKey ? "設定済み" : "未設定"}`),
       passwordRow("合言葉", "syncKey", "この端末に保存されます"),
       toggleRow("学習の区切りで自動同期する（おすすめ）", "syncAuto"),
       el(
@@ -1042,6 +1047,21 @@ function settingsScreen(ctx) {
             }
           },
           "接続テスト"
+        ),
+        el(
+          "button",
+          {
+            class: "btn",
+            type: "button",
+            onclick: async () => {
+              if (!confirm("このユーザーの合言葉をクリアします。よろしいですか？")) return;
+              s.syncKey = "";
+              await setSetting("syncKey", "");
+              toast("合言葉をクリアしました");
+              render();
+            }
+          },
+          "合言葉をクリア"
         ),
         el(
           "button",
@@ -1186,12 +1206,75 @@ function notFoundScreen() {
 let ctxCache = null;
 let sync = null;
 let profilesState = null;
+
+let profileSelectBusy = false;
+function renderHeaderProfileSwitcher() {
+  const sel = qs("#profileSelect");
+  if (!sel) return;
+  const st = profilesState || loadProfiles();
+  const profiles = st.profiles || [];
+
+  profileSelectBusy = true;
+  sel.innerHTML = "";
+  for (const p of profiles) {
+    sel.appendChild(el("option", { value: p.id, selected: p.id === st.currentId ? "selected" : null }, p.name));
+  }
+  sel.appendChild(el("option", { value: "__add__" }, "＋ユーザー追加…"));
+  sel.appendChild(el("option", { value: "__manage__" }, "設定で管理…"));
+  profileSelectBusy = false;
+}
+
+async function switchProfile(profileId) {
+  profilesState = setCurrentProfileId(loadProfiles(), profileId);
+  setActiveProfileId(profileId);
+  ctxCache = null;
+  toast("ユーザーを切り替えました");
+  renderHeaderProfileSwitcher();
+  await render();
+}
+
+async function addProfileFromHeader() {
+  const name = prompt("追加するユーザー名（例：太郎）");
+  if (name === null) return;
+  profilesState = addProfile(loadProfiles(), name);
+  setActiveProfileId(profilesState.currentId);
+  const key = prompt("このユーザーの合言葉（端末間同期用。空なら後で設定）");
+  if (key !== null && String(key).trim()) {
+    await setSetting("syncKey", String(key).trim());
+  }
+  ctxCache = null;
+  toast("ユーザーを追加しました");
+  renderHeaderProfileSwitcher();
+  await render();
+}
+
+function attachHeaderProfileEvents() {
+  const sel = qs("#profileSelect");
+  if (!sel || sel.dataset.bound === "1") return;
+  sel.dataset.bound = "1";
+  sel.addEventListener("change", async () => {
+    if (profileSelectBusy) return;
+    const v = sel.value;
+    if (v === "__add__") {
+      await addProfileFromHeader();
+      return;
+    }
+    if (v === "__manage__") {
+      go("#/settings");
+      return;
+    }
+    await switchProfile(v);
+  });
+}
+
 async function render() {
   try {
     if (!ctxCache) {
       setMain(layout("読み込み中…", el("div", { class: "card stack" }, el("div", { class: "p" }, "初回は少し時間がかかることがあります。"))));
-      profilesState = loadProfiles();
-      setActiveProfileId(profilesState.currentId);
+      if (!profilesState) {
+        profilesState = loadProfiles();
+        setActiveProfileId(profilesState.currentId);
+      }
       ctxCache = await loadAppContext();
       sync = createSyncManager({
         getSettings: () => ctxCache?.settings,
@@ -1202,6 +1285,8 @@ async function render() {
         },
         toast
       });
+      attachHeaderProfileEvents();
+      renderHeaderProfileSwitcher();
     }
     const ctx = ctxCache;
     const route = parseHash();
@@ -1236,6 +1321,11 @@ async function main() {
 
   onRouteChange(render);
   if (!window.location.hash) window.location.hash = "#/home";
+  // ヘッダーのユーザー切替を先に初期化
+  profilesState = loadProfiles();
+  setActiveProfileId(profilesState.currentId);
+  attachHeaderProfileEvents();
+  renderHeaderProfileSwitcher();
   await render();
 
   // Keyboard shortcuts
