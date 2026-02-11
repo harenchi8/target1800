@@ -27,9 +27,15 @@
               <option value="legacy">ユーザー</option>
             </select>
           </div>
-          <a class="navLink" href="#/home">ホーム</a>
-          <a class="navLink" href="#/analysis">分析</a>
-          <a class="navLink" href="#/settings">設定</a>
+          <button id="menuToggle" class="menuBtn" type="button" aria-controls="navLinks" aria-expanded="false">
+            <span class="menuBtn__label">メニュー</span>
+          </button>
+          <div id="navLinks" class="navLinks" aria-label="画面遷移">
+            <a class="navLink" href="#/home">ホーム</a>
+            <a class="navLink" href="#/history">履歴</a>
+            <a class="navLink" href="#/analysis">分析</a>
+            <a class="navLink" href="#/settings">設定</a>
+          </div>
         </nav>
       </header>
 
@@ -41,6 +47,7 @@
     </div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
+    <div id="praise" class="praise" role="status" aria-live="polite" aria-atomic="true"></div>
     <script type="module" src="./src/app.js"></script>
   </body>
 </html>

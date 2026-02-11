@@ -1,13 +1,54 @@
 import { loadWords } from "./data.js";
-import { clearAllData, createEmptyProgress, deleteProfileDb, getAllProgress, getAllSettings, getProgress, getProgressMap, putProgress, setActiveProfileId, setSetting } from "./db.js";
+import { addHistory, clearAllData, clearHistory, createEmptyProgress, deleteProfileDb, getAllProgress, getAllSettings, getProgress, getProgressMap, getRecentHistory, putProgress, setActiveProfileId, setSetting } from "./db.js";
 import { parseHash, onRouteChange, go } from "./router.js";
-import { clamp, el, fmtDateTime, qs, setMain, toast } from "./ui.js";
+import { clamp, el, fmtDateTime, praise, qs, setMain, toast } from "./ui.js";
 import { applyMeaningGrade, applySpellingGrade, scoreMeaning, scoreSpelling } from "./srs.js";
 import { buildCandidateWords, buildReviewCandidates, mergeSettings, normalizeWord, orderWords, summarizeDue } from "./logic.js";
 import { createSyncManager, isSyncConfigured } from "./sync.js";
 import { addProfile, loadProfiles, removeProfile, setCurrentProfileId } from "./profiles.js";
 
 const SESSION_KEY = "t1800_session_v1";
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function praiseOpen() {
+  praise(pick(["アプリひらけてえらい！", "今日も来てくれてえらい！", "開けた時点で天才！"]));
+}
+
+function praiseSessionStart(mode) {
+  const label = mode === "learn" ? "覚える" : mode === "review" ? "復習" : "テスト";
+  praise(pick([`${label}を始められてえらい！`, "やる気出してえらい！", "その一歩がすごい！"]));
+}
+
+function praiseMeaningGrade(grade) {
+  if (grade === "o") return praise(pick(["正解えらい！", "思い出せてえらい！", "最高！その調子！"]));
+  if (grade === "triangle") return praise(pick(["△にできてえらい！成長してる！", "あいまいでもOK！続けてえらい！", "正直に自己採点できてえらい！"]));
+  return praise(pick(["間違えても挑戦えらい！", "思い出そうとしたのがえらい！", "次で取り返せる！えらい！"]));
+}
+
+function praiseSpelling(isCorrect) {
+  if (isCorrect) return praise(pick(["スペル正解えらい！", "一発で当ててえらい！", "しっかり書けてえらい！"]));
+  return praise(pick(["間違えても入力できてえらい！", "チャレンジえらい！次は当たる！", "最後までやるのがえらい！"]));
+}
+
+function praiseSessionDone() {
+  praise(pick(["最後までできてえらい！", "セッション完了えらい！", "今日の自分に勝った！えらい！"]));
+}
+
+async function logHistory(type, title, meta = {}) {
+  try {
+    await addHistory({
+      ts: new Date().toISOString(),
+      type,
+      title,
+      meta
+    });
+  } catch {
+    // ignore
+  }
+}
 
 function speakerIcon() {
   return el(
@@ -312,6 +353,8 @@ function setupScreen(ctx, mode) {
           spellingWasCorrect: null
         };
         saveSession(session);
+        praiseSessionStart(mode);
+        logHistory("session_start", "セッション開始", { mode, runMode, count: picked.length, order, filters });
 
         if (mode === "learn") go("#/learn");
         else if (runMode === "spelling") go("#/test-spelling");
@@ -391,6 +434,8 @@ async function learnScreen(ctx) {
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isFavorite ? "お気に入りに追加" : "お気に入りを解除");
+          praise(next.isFavorite ? "お気に入りにできてえらい！" : "見直せてえらい！");
+          logHistory("flag_favorite", next.isFavorite ? "お気に入りに追加" : "お気に入りを解除", { wordId, word: word.word });
           sync?.schedulePush("after-flag");
           render();
         }
@@ -406,6 +451,8 @@ async function learnScreen(ctx) {
           await putProgress(next);
           ctx.progressById.set(wordId, next);
           toast(next.isLearned ? "「覚えた」にチェック" : "「覚えた」を解除");
+          praise(next.isLearned ? "覚えたにできてえらい！" : "調整できてえらい！");
+          logHistory("flag_learned", next.isLearned ? "「覚えた」にした" : "「覚えた」を解除", { wordId, word: word.word });
           sync?.schedulePush("after-flag");
           render();
         }
@@ -480,6 +527,7 @@ async function learnScreen(ctx) {
           clearSession();
           toast("セッションを終了しました");
           sync?.schedulePush("after-session-end");
+          logHistory("session_end", "セッション終了");
           go("#/home");
         }
       },
@@ -557,6 +605,8 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "o", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          praiseMeaningGrade("o");
+          logHistory("meaning_grade", "意味テスト：○", { wordId, word: word.word });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -574,6 +624,8 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "triangle", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          praiseMeaningGrade("triangle");
+          logHistory("meaning_grade", "意味テスト：△", { wordId, word: word.word });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -591,6 +643,8 @@ async function meaningTestScreen(ctx) {
           const p1 = applyMeaningGrade(p0, "x", now, ctx.settings);
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
+          praiseMeaningGrade("x");
+          logHistory("meaning_grade", "意味テスト：×", { wordId, word: word.word });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -606,6 +660,8 @@ async function meaningTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
+      praiseSessionDone();
+      logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       clearSession();
       go("#/home");
       return;
@@ -742,6 +798,8 @@ async function spellingTestScreen(ctx) {
     }
     const isCorrect = user === normalizeWord(word.word);
     await commit(isCorrect);
+    praiseSpelling(isCorrect);
+    logHistory("spelling_grade", `綴りテスト：${isCorrect ? "○" : "×"}`, { wordId, word: word.word });
     showResult(isCorrect);
   });
 
@@ -752,8 +810,10 @@ async function spellingTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
+      praiseSessionDone();
       clearSession();
       sync?.schedulePush("after-session-end");
+      logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       go("#/home");
       return;
     }
@@ -882,6 +942,54 @@ function analysisScreen(ctx) {
       levelTable
     )
   );
+}
+
+async function historyScreen() {
+  const items = await getRecentHistory(250);
+  const list =
+    items.length === 0
+      ? el("div", { class: "card stack" }, el("div", { class: "p" }, "まだ履歴がありません。"))
+      : el(
+          "div",
+          { class: "historyList" },
+          ...items.map((it) => {
+            const t = it?.ts ? new Date(it.ts) : null;
+            const time = t && !Number.isNaN(t.getTime()) ? t.toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }) : "—";
+            const metaWord = it?.meta?.word ? `単語: ${it.meta.word}` : "";
+            return el(
+              "div",
+              { class: "historyItem" },
+              el("div", { class: "historyTime" }, time),
+              el(
+                "div",
+                { class: "historyMain" },
+                el("div", { class: "historyTitle" }, it?.title || "—"),
+                metaWord ? el("div", { class: "historyMeta" }, metaWord) : null
+              )
+            );
+          })
+        );
+
+  const actions = el(
+    "div",
+    { class: "row" },
+    el(
+      "button",
+      {
+        class: "btn btnBad",
+        type: "button",
+        onclick: async () => {
+          if (!confirm("履歴を全削除します。よろしいですか？")) return;
+          await clearHistory();
+          toast("履歴を削除しました");
+          await render();
+        }
+      },
+      "履歴を全削除"
+    )
+  );
+
+  return layout("履歴", el("div", { class: "stack" }, actions, list));
 }
 
 function settingsScreen(ctx) {
@@ -1269,6 +1377,44 @@ function attachHeaderProfileEvents() {
   });
 }
 
+function attachHeaderMenuEvents() {
+  const btn = qs("#menuToggle");
+  const links = qs("#navLinks");
+  if (!btn || !links || btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+
+  const close = () => {
+    links.classList.remove("open");
+    btn.setAttribute("aria-expanded", "false");
+  };
+  const toggle = () => {
+    const isOpen = links.classList.toggle("open");
+    btn.setAttribute("aria-expanded", isOpen ? "true" : "false");
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    toggle();
+  });
+
+  // リンクを押したら閉じる
+  links.addEventListener("click", (e) => {
+    const a = e.target?.closest?.("a");
+    if (a) close();
+  });
+
+  // 外側クリックで閉じる
+  document.addEventListener("click", (e) => {
+    if (!links.classList.contains("open")) return;
+    const t = e.target;
+    if (t === btn || btn.contains(t) || links.contains(t)) return;
+    close();
+  });
+
+  // 画面遷移でも閉じる
+  window.addEventListener("hashchange", close);
+}
+
 async function render() {
   try {
     if (!ctxCache) {
@@ -1288,12 +1434,14 @@ async function render() {
         toast
       });
       attachHeaderProfileEvents();
+      attachHeaderMenuEvents();
       renderHeaderProfileSwitcher();
     }
     const ctx = ctxCache;
     const route = parseHash();
 
     if (route.path === "/home") return void setMain(homeScreen(ctx));
+    if (route.path === "/history") return void setMain(await historyScreen());
     if (route.path === "/analysis") return void setMain(analysisScreen(ctx));
     if (route.path === "/settings") return void setMain(settingsScreen(ctx));
 
@@ -1327,8 +1475,10 @@ async function main() {
   profilesState = loadProfiles();
   setActiveProfileId(profilesState.currentId);
   attachHeaderProfileEvents();
+  attachHeaderMenuEvents();
   renderHeaderProfileSwitcher();
   await render();
+  praiseOpen();
 
   // Keyboard shortcuts
   window.addEventListener("keydown", (e) => {

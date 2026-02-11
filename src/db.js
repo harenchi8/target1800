@@ -1,5 +1,5 @@
 const DB_BASE = "target1800";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let activeDbName = DB_BASE;
 let dbInstance = null;
@@ -65,6 +65,11 @@ export function openDb() {
       }
       if (!db.objectStoreNames.contains("settings")) {
         db.createObjectStore("settings", { keyPath: "key" });
+      }
+      if (!db.objectStoreNames.contains("history")) {
+        const h = db.createObjectStore("history", { keyPath: "id", autoIncrement: true });
+        h.createIndex("ts", "ts", { unique: false });
+        h.createIndex("type", "type", { unique: false });
       }
     };
     req.onsuccess = () => {
@@ -185,9 +190,46 @@ export async function getAllSettings() {
 
 export async function clearAllData() {
   const db = await openDb();
-  const tx = db.transaction(["progress", "settings"], "readwrite");
+  const tx = db.transaction(["progress", "settings", "history"], "readwrite");
   tx.objectStore("progress").clear();
   tx.objectStore("settings").clear();
+  tx.objectStore("history").clear();
+  await txDone(tx);
+}
+
+export async function addHistory(event) {
+  const db = await openDb();
+  const tx = db.transaction(["history"], "readwrite");
+  const store = tx.objectStore("history");
+  store.add(event);
+  await txDone(tx);
+}
+
+export async function getRecentHistory(limit = 200) {
+  const db = await openDb();
+  const tx = db.transaction(["history"], "readonly");
+  const store = tx.objectStore("history");
+  const out = [];
+
+  await new Promise((resolve, reject) => {
+    const req = store.openCursor(null, "prev");
+    req.onsuccess = () => {
+      const cursor = req.result;
+      if (!cursor || out.length >= limit) return resolve();
+      out.push(cursor.value);
+      cursor.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+
+  await txDone(tx);
+  return out;
+}
+
+export async function clearHistory() {
+  const db = await openDb();
+  const tx = db.transaction(["history"], "readwrite");
+  tx.objectStore("history").clear();
   await txDone(tx);
 }
 

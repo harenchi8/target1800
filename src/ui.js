@@ -60,6 +60,36 @@ export function toast(message) {
   toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
+let praiseTimer = null;
+let praiseQueue = [];
+let praiseShowing = false;
+
+function showNextPraise() {
+  const p = qs("#praise");
+  if (!p) return;
+  const msg = praiseQueue.shift();
+  if (!msg) {
+    praiseShowing = false;
+    return;
+  }
+  praiseShowing = true;
+  p.innerHTML = "";
+  p.appendChild(el("div", { class: "praise__text" }, msg));
+  p.classList.add("show");
+  if (praiseTimer) clearTimeout(praiseTimer);
+  praiseTimer = setTimeout(() => {
+    p.classList.remove("show");
+    setTimeout(showNextPraise, 160);
+  }, 2600);
+}
+
+export function praise(message) {
+  const msg = String(message || "").trim();
+  if (!msg) return;
+  praiseQueue.push(msg);
+  if (!praiseShowing) showNextPraise();
+}
+
 export function fmtDateTime(iso) {
   if (!iso) return "—";
   const d = new Date(iso);
