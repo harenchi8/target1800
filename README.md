@@ -333,6 +333,10 @@ wrangler deploy
 
 デプロイ後のURL（例: `https://xxxx.your-subdomain.workers.dev`）を控えます。
 
+疎通確認:
+
+- `https://<worker-url>/health` をブラウザで開いて `{ "ok": true, ... }` が返ればOKです。
+
 #### 2) アプリ側（設定）
 
 アプリの `設定 → 端末間同期（合言葉）` に

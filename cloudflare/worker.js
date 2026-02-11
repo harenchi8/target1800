@@ -26,6 +26,11 @@ export default {
     const url = new URL(req.url);
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders });
 
+    // 疎通確認用（ブラウザで開ける）
+    if (req.method === "GET" && url.pathname === "/health") {
+      return json({ ok: true, service: "target1800-sync", ts: new Date().toISOString() });
+    }
+
     if (req.method !== "POST") return json({ error: "Method Not Allowed" }, { status: 405 });
 
     let body;

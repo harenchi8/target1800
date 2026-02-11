@@ -1,5 +1,5 @@
-// ユーザー機能追加によりバージョンを上げる
-const CACHE_NAME = "target1800-cache-v4";
+// 同期先URL固定の更新を確実に反映するためバージョンを上げる
+const CACHE_NAME = "target1800-cache-v5";
 
 const APP_SHELL = [
   "./",

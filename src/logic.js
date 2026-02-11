@@ -6,7 +6,7 @@ export const DEFAULT_SETTINGS = {
   theme: "school", // school | dark
   // 端末間同期（合言葉）
   // 同期先URLは固定（ユーザー入力不要）
-  syncEndpoint: "https://target1800.harench8.workers.dev",
+  syncEndpoint: "https://target1800-sync.harench8.workers.dev",
   syncKey: "", // 合言葉（推測されにくい長め推奨）
   syncAuto: true, // 学習の区切りで自動同期
   syncLastAt: null,
@@ -19,8 +19,8 @@ export const DEFAULT_SETTINGS = {
 
 export function mergeSettings(raw) {
   const merged = { ...DEFAULT_SETTINGS, ...(raw || {}) };
-  // 以前の保存値が空文字でも、固定URLを優先
-  if (!merged.syncEndpoint) merged.syncEndpoint = DEFAULT_SETTINGS.syncEndpoint;
+  // 同期先URLは固定（過去に保存されていても常に固定URLを使う）
+  merged.syncEndpoint = DEFAULT_SETTINGS.syncEndpoint;
   return merged;
 }
 

@@ -975,8 +975,13 @@ function settingsScreen(ctx) {
               if (name === null) return;
               profilesState = addProfile(loadProfiles(), name);
               setActiveProfileId(profilesState.currentId);
+              // 追加直後に合言葉も設定できるようにする（ユーザー別）
+              const key = prompt("このユーザーの合言葉（端末間同期用。空なら後で設定）");
+              if (key !== null && String(key).trim()) {
+                await setSetting("syncKey", String(key).trim());
+              }
               ctxCache = null;
-              toast("ユーザーを追加しました。合言葉を設定してください。");
+              toast("ユーザーを追加しました");
               await render();
             }
           },
@@ -1023,6 +1028,24 @@ function settingsScreen(ctx) {
         el(
           "button",
           {
+            class: "btn",
+            type: "button",
+            onclick: async () => {
+              try {
+                const res = await fetch(`${s.syncEndpoint}/health`, { method: "GET" });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                toast("接続OK（/health）");
+              } catch (e) {
+                const msg = e?.message || String(e);
+                toast(`接続NG: ${msg}`);
+              }
+            }
+          },
+          "接続テスト"
+        ),
+        el(
+          "button",
+          {
             class: "btn btnPrimary",
             type: "button",
             onclick: async () => {
@@ -1033,7 +1056,11 @@ function settingsScreen(ctx) {
                 }
                 await sync?.pushNow("manual");
               } catch (e) {
-                const msg = e?.message || String(e);
+                const msgRaw = e?.message || String(e);
+                const msg =
+                  msgRaw === "Failed to fetch"
+                    ? `Failed to fetch（同期先に接続できません）: ${s.syncEndpoint}（WorkerのURL/デプロイ/CORSを確認）`
+                    : msgRaw;
                 await setSetting("syncLastError", msg);
                 s.syncLastError = msg;
                 toast(`同期失敗: ${msg}`);
@@ -1058,7 +1085,11 @@ function settingsScreen(ctx) {
                 }
                 await sync?.pullAndRestore();
               } catch (e) {
-                const msg = e?.message || String(e);
+                const msgRaw = e?.message || String(e);
+                const msg =
+                  msgRaw === "Failed to fetch"
+                    ? `Failed to fetch（同期先に接続できません）: ${s.syncEndpoint}（WorkerのURL/デプロイ/CORSを確認）`
+                    : msgRaw;
                 await setSetting("syncLastError", msg);
                 s.syncLastError = msg;
                 toast(`復元失敗: ${msg}`);
