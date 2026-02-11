@@ -173,6 +173,10 @@ body:not([data-theme="dark"]) .navLink:hover{
   .grid2{ grid-template-columns: 1fr 1fr; }
 }
 
+.homeSection .grid2 .btn{
+  width: 100%;
+}
+
 .field label{ display:block; font-weight:700; margin: 0 0 6px; }
 .field input, .field select, .field textarea{
   width:100%;

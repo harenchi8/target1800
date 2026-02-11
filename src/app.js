@@ -130,30 +130,15 @@ function errorCard(message, detail) {
 function homeScreen(ctx) {
   const due = summarizeDue([...ctx.progressById.values()]);
 
-  const btnRow = el(
-    "div",
-    { class: "grid2" },
-    el(
-      "a",
-      { class: "btn btnPrimary", href: "#/setup?mode=learn" },
-      "覚える（カード）"
-    ),
-    el(
-      "a",
-      { class: "btn btnPrimary", href: "#/setup?mode=meaning" },
-      "テスト（意味）"
-    ),
-    el(
-      "a",
-      { class: "btn btnPrimary", href: "#/setup?mode=spelling" },
-      "テスト（綴り）"
-    ),
-    el(
-      "a",
-      { class: "btn btnPrimary", href: "#/setup?mode=review" },
-      "間違い集中（復習）"
-    )
-  );
+  function section(title, desc, actions) {
+    return el(
+      "div",
+      { class: "card stack homeSection" },
+      el("div", { class: "row", style: "justify-content:space-between; align-items:baseline;" }, el("div", { class: "h2" }, title)),
+      el("div", { class: "p" }, desc),
+      el("div", { class: "grid2" }, ...actions)
+    );
+  }
 
   const meta = el(
     "div",
@@ -161,6 +146,23 @@ function homeScreen(ctx) {
     el("span", { class: "pill" }, `単語数: ${ctx.words.length}`),
     el("span", { class: "pill" }, `今日の復習（意味）: ${due.meaningDue}`),
     el("span", { class: "pill" }, `今日の復習（綴り）: ${due.spellingDue}`)
+  );
+
+  const sections = el(
+    "div",
+    { class: "stack" },
+    section("① 覚える（インプット）", "まずはカードで「意味・例文・用法」をざっと見て、土台を作ります。", [
+      el("a", { class: "btn btnPrimary", href: "#/setup?mode=learn" }, "覚える（カード）"),
+      el("a", { class: "btn", href: "#/settings" }, "表示・テーマ設定")
+    ]),
+    section("② テスト（思い出す）", "見ないで思い出す練習。意味テストは自己採点（○/△/×）、綴りは自動判定です。", [
+      el("a", { class: "btn btnPrimary", href: "#/setup?mode=meaning" }, "テスト（意味）"),
+      el("a", { class: "btn btnPrimary", href: "#/setup?mode=spelling" }, "テスト（綴り）")
+    ]),
+    section("③ 復習（弱点）", "×や△がついた単語だけを集めて復習します。", [
+      el("a", { class: "btn btnPrimary", href: "#/setup?mode=review" }, "間違い集中（復習）"),
+      el("a", { class: "btn", href: "#/analysis" }, "苦手・正答率を見る")
+    ])
   );
 
   const help = el(
@@ -180,7 +182,7 @@ function homeScreen(ctx) {
     )
   );
 
-  return layout("ホーム", el("div", { class: "stack" }, meta, btnRow, help));
+  return layout("ホーム", el("div", { class: "stack" }, meta, sections, help));
 }
 
 function setupScreen(ctx, mode) {
