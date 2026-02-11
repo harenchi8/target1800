@@ -337,6 +337,10 @@ body:not([data-theme="dark"]) .navLink:hover{
   transition: opacity .2s ease;
 }
 .toast.show{ opacity: 1; }
+.toast.danger{
+  border-color: color-mix(in oklab, #dc2626 45%, var(--border));
+  color: #b91c1c; /* 薄めの赤（警告） */
+}
 
 .praise{
   position: fixed;

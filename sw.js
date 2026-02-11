@@ -1,5 +1,5 @@
-// HOME改修（今日やる/XP/連続）を確実に反映するためバージョンを上げる
-const CACHE_NAME = "target1800-cache-v13";
+// 警告トースト（赤）の反映を確実にするためバージョンを上げる
+const CACHE_NAME = "target1800-cache-v15";
 
 const APP_SHELL = [
   "./",

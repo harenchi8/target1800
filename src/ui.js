@@ -52,12 +52,21 @@ export function setMain(node) {
 }
 
 let toastTimer = null;
-export function toast(message) {
+export function toast(message, opts = {}) {
   const t = qs("#toast");
   t.textContent = message;
+  const variant = opts?.variant || "default";
+  t.classList.toggle("danger", variant === "danger");
   t.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.classList.remove("show"), 2200);
+  toastTimer = setTimeout(() => {
+    t.classList.remove("show");
+    t.classList.remove("danger");
+  }, 2200);
+}
+
+export function toastDanger(message) {
+  toast(message, { variant: "danger" });
 }
 
 let praiseTimer = null;

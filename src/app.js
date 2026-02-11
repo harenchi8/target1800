@@ -1,7 +1,7 @@
 import { loadWords } from "./data.js";
 import { addHistory, clearAllData, clearHistory, createEmptyProgress, deleteProfileDb, getAllProgress, getAllSettings, getProgress, getProgressMap, getRecentHistory, putProgress, setActiveProfileId, setSetting } from "./db.js";
 import { parseHash, onRouteChange, go } from "./router.js";
-import { clamp, el, fmtDateTime, praise, qs, setMain, toast } from "./ui.js";
+import { clamp, el, fmtDateTime, praise, qs, setMain, toast, toastDanger } from "./ui.js";
 import { applyMeaningGrade, applySpellingGrade, scoreMeaning, scoreSpelling } from "./srs.js";
 import { buildCandidateWords, buildReviewCandidates, mergeSettings, normalizeWord, orderWords, summarizeDue } from "./logic.js";
 import { createSyncManager, isSyncConfigured } from "./sync.js";
@@ -48,6 +48,22 @@ async function logHistory(type, title, meta = {}) {
   } catch {
     // ignore
   }
+}
+
+const doubleTapMap = new Map();
+function requireDoubleTap(key, hintMessage, fn) {
+  const now = Date.now();
+  const prev = doubleTapMap.get(key) || 0;
+  if (now - prev <= 1600) {
+    doubleTapMap.delete(key);
+    fn();
+    return;
+  }
+  doubleTapMap.set(key, now);
+  toastDanger(hintMessage);
+  setTimeout(() => {
+    if (doubleTapMap.get(key) === now) doubleTapMap.delete(key);
+  }, 1700);
 }
 
 function localDayKey(d = new Date()) {
@@ -711,13 +727,14 @@ async function learnScreen(ctx) {
       "button",
       {
         class: "btn",
-        onclick: () => {
-          clearSession();
-          toast("セッションを終了しました");
-          sync?.schedulePush("after-session-end");
-          logHistory("session_end", "セッション終了");
-          go("#/home");
-        }
+        onclick: () =>
+          requireDoubleTap("learn_end", "もう一度押すとセッションを終了します", () => {
+            clearSession();
+            toast("セッションを終了しました");
+            sync?.schedulePush("after-session-end");
+            logHistory("session_end", "セッション終了");
+            go("#/home");
+          })
       },
       "終了"
     )
@@ -892,17 +909,31 @@ async function meaningTestScreen(ctx) {
     el(
       "div",
       { class: "row" },
-      el("a", { class: "btn", href: "#/home" }, "中断してホームへ"),
       el(
         "button",
         {
           class: "btn",
           type: "button",
-          onclick: () => {
-            clearSession();
-            toast("セッションを終了しました");
-            go("#/home");
-          }
+          onclick: () =>
+            requireDoubleTap("meaning_home", "もう一度押すとホームへ戻ります（中断）", () => {
+              clearSession();
+              toast("中断しました");
+              go("#/home");
+            })
+        },
+        "中断してホームへ"
+      ),
+      el(
+        "button",
+        {
+          class: "btn",
+          type: "button",
+          onclick: () =>
+            requireDoubleTap("meaning_end", "もう一度押すとセッションを終了します", () => {
+              clearSession();
+              toast("セッションを終了しました");
+              go("#/home");
+            })
         },
         "セッション終了"
       )
@@ -1023,17 +1054,31 @@ async function spellingTestScreen(ctx) {
       el(
         "div",
         { class: "row" },
-        el("a", { class: "btn", href: "#/home" }, "中断してホームへ"),
         el(
           "button",
           {
             class: "btn",
             type: "button",
-            onclick: () => {
-              clearSession();
-              toast("セッションを終了しました");
-              go("#/home");
-            }
+            onclick: () =>
+              requireDoubleTap("spelling_home", "もう一度押すとホームへ戻ります（中断）", () => {
+                clearSession();
+                toast("中断しました");
+                go("#/home");
+              })
+          },
+          "中断してホームへ"
+        ),
+        el(
+          "button",
+          {
+            class: "btn",
+            type: "button",
+            onclick: () =>
+              requireDoubleTap("spelling_end", "もう一度押すとセッションを終了します", () => {
+                clearSession();
+                toast("セッションを終了しました");
+                go("#/home");
+              })
           },
           "セッション終了"
         )
