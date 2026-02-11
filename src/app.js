@@ -50,6 +50,152 @@ async function logHistory(type, title, meta = {}) {
   }
 }
 
+function localDayKey(d = new Date()) {
+  // ローカル日付（YYYY-MM-DD）に正規化（連続日数計算用）
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function addDays(d, n) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+
+function computeLearnedCount(progressList) {
+  // 指示書: meaning ○ 2回以上を「習得」とみなす
+  let learned = 0;
+  for (const p of progressList) {
+    if ((p?.meaningCorrect || 0) >= 2) learned++;
+  }
+  return learned;
+}
+
+function computeStreakDays(historyItems) {
+  // 「採点した日」を学習日として連続日数を計算
+  const studiedDays = new Set();
+  for (const it of historyItems || []) {
+    if (it?.type !== "meaning_grade" && it?.type !== "spelling_grade") continue;
+    const t = it?.ts ? new Date(it.ts) : null;
+    if (!t || Number.isNaN(t.getTime())) continue;
+    studiedDays.add(localDayKey(t));
+  }
+  const todayKey = localDayKey(new Date());
+  if (!studiedDays.has(todayKey)) return 0;
+
+  let streak = 0;
+  let cursor = new Date();
+  while (studiedDays.has(localDayKey(cursor))) {
+    streak++;
+    cursor = addDays(cursor, -1);
+  }
+  return streak;
+}
+
+function sumTodayXp(historyItems) {
+  const today = localDayKey(new Date());
+  let xp = 0;
+  for (const it of historyItems || []) {
+    const t = it?.ts ? new Date(it.ts) : null;
+    if (!t || Number.isNaN(t.getTime())) continue;
+    if (localDayKey(t) !== today) continue;
+    const d = Number(it?.meta?.xpDelta || 0);
+    if (!Number.isFinite(d)) continue;
+    xp += d;
+  }
+  return xp;
+}
+
+function computeTodayPlan(ctx) {
+  const now = new Date();
+  const allProgress = [...ctx.progressById.values()];
+  const byId = ctx.progressById;
+
+  // 1) 今日の復習（SRS到達分）: meaning/spelling どちらかが期限到達
+  const due = [];
+  for (const w of ctx.words) {
+    const p = byId.get(w.id);
+    const md = p?.meaningNextReviewAt ? new Date(p.meaningNextReviewAt).getTime() : null;
+    const sd = p?.spellingNextReviewAt ? new Date(p.spellingNextReviewAt).getTime() : null;
+    const mDue = md !== null && !Number.isNaN(md) && md <= now.getTime();
+    const sDue = sd !== null && !Number.isNaN(sd) && sd <= now.getTime();
+    if (mDue || sDue) due.push(w.id);
+  }
+
+  // 2) 間違い・△単語（弱点）: 意味の×/△、綴り×
+  const weak = [];
+  for (const w of ctx.words) {
+    const p = byId.get(w.id);
+    if (!p) continue;
+    const meaningBad = (p.meaningWrong || 0) > 0 || (p.meaningPartial || 0) > 0;
+    const spellingBad = (p.spellingWrong || 0) > 0;
+    if (meaningBad || spellingBad) weak.push(w.id);
+  }
+
+  // 3) 新規単語（10語固定）: 履歴/進捗がほぼ無いもの
+  const newCandidates = [];
+  for (const w of ctx.words) {
+    const p = byId.get(w.id);
+    if (!p) {
+      newCandidates.push(w.id);
+      continue;
+    }
+    const attempts =
+      (p.meaningCorrect || 0) + (p.meaningPartial || 0) + (p.meaningWrong || 0) + (p.spellingCorrect || 0) + (p.spellingWrong || 0);
+    if (attempts === 0) newCandidates.push(w.id);
+  }
+
+  // 重複排除しつつ順序を「今日の復習→弱点→新規」にする
+  const seen = new Set();
+  const ordered = [];
+  const pushList = (list) => {
+    for (const id of list) {
+      if (seen.has(id)) continue;
+      seen.add(id);
+      ordered.push(id);
+    }
+  };
+
+  // due は nextReviewAt が近い順に
+  const dueSorted = [...due].sort((a, b) => {
+    const pa = byId.get(a);
+    const pb = byId.get(b);
+    const da = Math.min(
+      pa?.meaningNextReviewAt ? Date.parse(pa.meaningNextReviewAt) || Infinity : Infinity,
+      pa?.spellingNextReviewAt ? Date.parse(pa.spellingNextReviewAt) || Infinity : Infinity
+    );
+    const db = Math.min(
+      pb?.meaningNextReviewAt ? Date.parse(pb.meaningNextReviewAt) || Infinity : Infinity,
+      pb?.spellingNextReviewAt ? Date.parse(pb.spellingNextReviewAt) || Infinity : Infinity
+    );
+    return da - db;
+  });
+
+  // weak はスコア高い順（意味優先）
+  const weakSorted = [...weak].sort((a, b) => {
+    const sa = scoreMeaning(byId.get(a) || {}) + scoreSpelling(byId.get(a) || {});
+    const sb = scoreMeaning(byId.get(b) || {}) + scoreSpelling(byId.get(b) || {});
+    return sb - sa;
+  });
+
+  const newSorted = [...newCandidates].sort((a, b) => a - b);
+
+  pushList(dueSorted);
+  pushList(weakSorted);
+  pushList(newSorted.slice(0, 10));
+
+  return {
+    dueCount: dueSorted.length,
+    weakCount: weakSorted.length,
+    newCount: Math.min(10, newSorted.length),
+    total: ordered.length,
+    wordIds: ordered,
+    learned: computeLearnedCount(allProgress)
+  };
+}
+
 function speakerIcon() {
   return el(
     "svg",
@@ -169,7 +315,9 @@ function errorCard(message, detail) {
 }
 
 function homeScreen(ctx) {
-  const due = summarizeDue([...ctx.progressById.values()]);
+  const progressList = [...ctx.progressById.values()];
+  const due = summarizeDue(progressList);
+  const plan = computeTodayPlan(ctx);
 
   function section(title, desc, actions) {
     return el(
@@ -181,28 +329,73 @@ function homeScreen(ctx) {
     );
   }
 
-  const meta = el(
+  // 感情が動くステータス（簡易）
+  // streak / xp は履歴から計算
+  // ※履歴が多いと重いので200件だけ見る
+  const historyItems = ctx._homeHistory || [];
+  const streak = computeStreakDays(historyItems);
+  const xpToday = sumTodayXp(historyItems);
+
+  const stats = el(
+    "div",
+    { class: "statGrid" },
+    el("div", { class: "statCard" }, el("div", { class: "statLabel" }, "🎯 習得"), el("div", { class: "statValue" }, `${plan.learned} / ${ctx.words.length}語`)),
+    el("div", { class: "statCard" }, el("div", { class: "statLabel" }, "🔥 連続学習"), el("div", { class: "statValue" }, `${streak}日`)),
+    el("div", { class: "statCard" }, el("div", { class: "statLabel" }, "📚 今日の復習"), el("div", { class: "statValue" }, `${due.meaningDue + due.spellingDue}語`))
+  );
+
+  const stats2 = el(
     "div",
     { class: "row" },
-    el("span", { class: "pill" }, `単語数: ${ctx.words.length}`),
-    el("span", { class: "pill" }, `今日の復習（意味）: ${due.meaningDue}`),
-    el("span", { class: "pill" }, `今日の復習（綴り）: ${due.spellingDue}`)
+    el("span", { class: "pill" }, `✨ 今日: +${xpToday}XP`),
+    el("span", { class: "pill" }, plan.total > 0 ? `今日はあと${plan.total}問でOK` : "🎉 今日分完了！")
+  );
+
+  const hero = el(
+    "div",
+    { class: "card stack" },
+    el(
+      "button",
+      {
+        class: "btn btnHero",
+        type: "button",
+        onclick: () => {
+          const session = {
+            mode: "today",
+            runMode: "meaning",
+            filters: { levels: [], eiken: "all" },
+            order: "today",
+            wordIds: plan.wordIds,
+            idx: 0,
+            answerShown: false,
+            spellingChecked: false,
+            spellingWasCorrect: null
+          };
+          saveSession(session);
+          praiseSessionStart("today");
+          logHistory("session_start", "今日の学習開始", { mode: "today", count: plan.wordIds.length });
+          go("#/test-meaning");
+        }
+      },
+      "🔥 今日の学習を開始"
+    ),
+    el("div", { class: "help" }, "今日の復習 → 弱点 → 新規10語を自動で出します。")
   );
 
   const sections = el(
     "div",
     { class: "stack" },
-    section("① 覚える（インプット）", "まずはカードで「意味・例文・用法」をざっと見て、土台を作ります。", [
-      el("a", { class: "btn btnPrimary", href: "#/setup?mode=learn" }, "覚える（カード）"),
-      el("a", { class: "btn", href: "#/settings" }, "表示・テーマ設定")
-    ]),
-    section("② テスト（思い出す）", "見ないで思い出す練習。意味テストは自己採点（○/△/×）、綴りは自動判定です。", [
+    section("② テスト（思い出す）", "見ずに思い出す → 最強の暗記", [
       el("a", { class: "btn btnPrimary", href: "#/setup?mode=meaning" }, "テスト（意味）"),
       el("a", { class: "btn btnPrimary", href: "#/setup?mode=spelling" }, "テスト（綴り）")
     ]),
-    section("③ 復習（弱点）", "×や△がついた単語だけを集めて復習します。", [
-      el("a", { class: "btn btnPrimary", href: "#/setup?mode=review" }, "間違い集中（復習）"),
+    section("③ 🔥 弱点だけやる", "×と△だけ出ます。いちばん伸びるモード。", [
+      el("a", { class: "btn btnPrimary", href: "#/setup?mode=review" }, "🔥 弱点だけやる"),
       el("a", { class: "btn", href: "#/analysis" }, "苦手・正答率を見る")
+    ]),
+    section("① 覚える（カード）", "最初に見るだけ。テスト前の準備に。", [
+      el("a", { class: "btn", href: "#/setup?mode=learn" }, "覚える（カード）"),
+      el("a", { class: "btn", href: "#/settings" }, "設定")
     ])
   );
 
@@ -215,15 +408,10 @@ function homeScreen(ctx) {
       { class: "p" },
       "「テスト（意味）」→「答えを見る」→ ○/△/× を確定、で記録とSRSが進みます。"
     ),
-    el("div", { class: "p" }, "「綴り」は完全一致（小文字化・前後空白除去）で自動判定です。"),
-    el(
-      "div",
-      { class: "help" },
-      "※ data/target1800.min.json はサンプル3件です。実データを置き換えると1800語で動きます。"
-    )
+    el("div", { class: "p" }, "「綴り」は完全一致（小文字化・前後空白除去）で自動判定です。")
   );
 
-  return layout("ホーム", el("div", { class: "stack" }, meta, sections, help));
+  return layout("ホーム", el("div", { class: "stack" }, stats, stats2, hero, sections, help));
 }
 
 function setupScreen(ctx, mode) {
@@ -606,7 +794,7 @@ async function meaningTestScreen(ctx) {
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
           praiseMeaningGrade("o");
-          logHistory("meaning_grade", "意味テスト：○", { wordId, word: word.word });
+          logHistory("meaning_grade", "意味テスト：○", { wordId, word: word.word, xpDelta: 5 });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -625,7 +813,7 @@ async function meaningTestScreen(ctx) {
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
           praiseMeaningGrade("triangle");
-          logHistory("meaning_grade", "意味テスト：△", { wordId, word: word.word });
+          logHistory("meaning_grade", "意味テスト：△", { wordId, word: word.word, xpDelta: 2 });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -644,7 +832,7 @@ async function meaningTestScreen(ctx) {
           await putProgress(p1);
           ctx.progressById.set(wordId, p1);
           praiseMeaningGrade("x");
-          logHistory("meaning_grade", "意味テスト：×", { wordId, word: word.word });
+          logHistory("meaning_grade", "意味テスト：×", { wordId, word: word.word, xpDelta: 1 });
           sync?.schedulePush("after-meaning-grade");
           next();
         }
@@ -799,7 +987,7 @@ async function spellingTestScreen(ctx) {
     const isCorrect = user === normalizeWord(word.word);
     await commit(isCorrect);
     praiseSpelling(isCorrect);
-    logHistory("spelling_grade", `綴りテスト：${isCorrect ? "○" : "×"}`, { wordId, word: word.word });
+    logHistory("spelling_grade", `綴りテスト：${isCorrect ? "○" : "×"}`, { wordId, word: word.word, xpDelta: isCorrect ? 6 : 1 });
     showResult(isCorrect);
   });
 
@@ -1424,6 +1612,12 @@ async function render() {
         setActiveProfileId(profilesState.currentId);
       }
       ctxCache = await loadAppContext();
+      // HOME用の履歴（連続日数/XP計算）。重すぎないように最新200件だけ読む
+      try {
+        ctxCache._homeHistory = await getRecentHistory(200);
+      } catch {
+        ctxCache._homeHistory = [];
+      }
       sync = createSyncManager({
         getSettings: () => ctxCache?.settings,
         setSettingValue: async (k, v) => {

@@ -222,6 +222,38 @@ body:not([data-theme="dark"]) .navLink:hover{
 .btnWarn{ background: color-mix(in oklab, var(--warn) 16%, var(--panel)); border-color: color-mix(in oklab, var(--warn) 40%, var(--border)); }
 .btnBad{ background: color-mix(in oklab, var(--bad) 14%, var(--panel)); border-color: color-mix(in oklab, var(--bad) 40%, var(--border)); }
 
+.btnHero{
+  width: 100%;
+  min-height: 64px;
+  font-size: 18px;
+  font-weight: 900;
+  border-radius: 18px;
+  background: color-mix(in oklab, var(--brand) 20%, var(--panel));
+  border-color: color-mix(in oklab, var(--brand) 55%, var(--border));
+}
+.btnHero:hover{ filter: brightness(1.03); }
+
+.statGrid{
+  display:grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+@media (min-width: 760px){
+  .statGrid{ grid-template-columns: 1fr 1fr 1fr; }
+}
+
+.statCard{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+.statLabel{ color: var(--muted); font-weight: 900; font-size: 12px; }
+.statValue{ font-weight: 900; font-size: 16px; }
+
 .pill{
   display:inline-flex;
   align-items:center;
