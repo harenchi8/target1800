@@ -1,5 +1,5 @@
-// ロゴ差し替えを確実に反映するためバージョンを上げる
-const CACHE_NAME = "target1800-cache-v20";
+// 完了演出画面（チルノ+紙吹雪）を確実に反映するためバージョンを上げる
+const CACHE_NAME = "target1800-cache-v21";
 
 const APP_SHELL = [
   "./",

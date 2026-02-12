@@ -305,6 +305,49 @@ body:not([data-theme="dark"]) .navLink:hover{
 .historyTitle{ font-weight: 900; }
 .historyMeta{ color: var(--muted); font-size: 12px; margin-top: 2px; }
 
+.celebrateCard{
+  position: relative;
+  overflow: hidden;
+  align-items: center;
+  text-align: center;
+  padding-top: 20px;
+  padding-bottom: 18px;
+}
+.celebrateImg{
+  width: min(220px, 55vw);
+  height: auto;
+  display: block;
+}
+.celebrateLine{
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--text);
+}
+
+.confettiWrap{
+  position:absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.confettiPiece{
+  position:absolute;
+  top: -12px;
+  width: 8px;
+  height: 14px;
+  border-radius: 2px;
+  background: hsl(var(--h, 210) 90% 58%);
+  animation: confettiFall linear infinite;
+}
+.confettiPiece:nth-child(3n){ background: #ef4444; }
+.confettiPiece:nth-child(3n+1){ background: #3b82f6; }
+.confettiPiece:nth-child(3n+2){ background: #22c55e; }
+@keyframes confettiFall{
+  0% { transform: translateY(-10px) rotate(0deg); opacity: .95; }
+  85% { opacity: .95; }
+  100% { transform: translateY(420px) rotate(480deg); opacity: 0; }
+}
+
 .field label{ display:block; font-weight:700; margin: 0 0 6px; }
 .field input, .field select, .field textarea{
   width:100%;

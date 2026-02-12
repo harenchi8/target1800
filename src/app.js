@@ -9,6 +9,31 @@ import { addProfile, loadProfiles, removeProfile, setCurrentProfileId } from "./
 import { createChirnoController } from "./chirno.js";
 
 const SESSION_KEY = "t1800_session_v1";
+const CELEBRATE_KEY = "t1800_celebrate_v1";
+
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function saveCelebrate(data) {
+  sessionStorage.setItem(CELEBRATE_KEY, JSON.stringify(data || {}));
+}
+
+function pullCelebrate() {
+  try {
+    const raw = sessionStorage.getItem(CELEBRATE_KEY);
+    sessionStorage.removeItem(CELEBRATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    sessionStorage.removeItem(CELEBRATE_KEY);
+    return null;
+  }
+}
+
+function goCelebrate({ mode = "test", runMode = "meaning", count = 0 } = {}) {
+  saveCelebrate({ mode, runMode, count, at: new Date().toISOString() });
+  go("#/celebrate");
+}
 
 async function logHistory(type, title, meta = {}) {
   try {
@@ -40,6 +65,23 @@ function sessionCorrectStreak(session, isCorrect) {
   const n = Number(s.correctStreak || 0);
   s.correctStreak = isCorrect ? n + 1 : 0;
   return s.correctStreak;
+}
+
+function celebrateLine(data) {
+  const m = data?.mode || "test";
+  if (m === "today") {
+    return pick(["今日ノルマ達成だな！さすが最強！", "今日分クリア！ちゃんとやるじゃん！", "よし！今日はここまでで勝ち！"]);
+  }
+  if (m === "review") {
+    return pick(["弱点つぶし完了！強くなったな！", "苦手を倒したな！えらい！", "復習やり切った！最強に近づいた！"]);
+  }
+  if (m === "learn") {
+    return pick(["カード最後まで見たな！えらいぞ！", "インプット完走！次は思い出す番だ！", "しっかり準備できたな！"]);
+  }
+  if (data?.runMode === "spelling") {
+    return pick(["スペル練習おつかれ！がんばったな！", "綴りまでやったの偉すぎる！", "ここまでやるの、ほんと強い！"]);
+  }
+  return pick(["テスト完了！よくやった！", "最後までやり切ったな！", "今日の自分に勝った！えらい！"]);
 }
 
 const doubleTapMap = new Map();
@@ -729,6 +771,13 @@ async function learnScreen(ctx) {
       {
         class: "btn btnPrimary",
         onclick: () => {
+          if (idx + 1 >= session.wordIds.length) {
+            toast("セッション完了");
+            logHistory("session_done", "セッション完了", { mode: "learn", runMode: "learn", count: session.wordIds.length });
+            clearSession();
+            goCelebrate({ mode: "learn", runMode: "learn", count: session.wordIds.length });
+            return;
+          }
           session.idx = clamp(idx + 1, 0, session.wordIds.length - 1);
           saveSession(session);
           render();
@@ -886,12 +935,9 @@ async function meaningTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
-      const emo = session.mode === "review" ? "guts" : "shy";
-      const cat = session.mode === "review" ? "guts" : "shy";
-      ensureChirno(ctx).say(cat, { emotionKey: emo });
       logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       clearSession();
-      go("#/home");
+      goCelebrate({ mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       return;
     }
     render();
@@ -1054,13 +1100,10 @@ async function spellingTestScreen(ctx) {
     saveSession(session);
     if (idx + 1 >= session.wordIds.length) {
       toast("セッション完了");
-      const emo = session.mode === "review" ? "guts" : "shy";
-      const cat = session.mode === "review" ? "guts" : "shy";
-      ensureChirno(ctx).say(cat, { emotionKey: emo });
       clearSession();
       sync?.schedulePush("after-session-end");
       logHistory("session_done", "セッション完了", { mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
-      go("#/home");
+      goCelebrate({ mode: session.mode, runMode: session.runMode, count: session.wordIds.length });
       return;
     }
     render();
@@ -1202,6 +1245,35 @@ function analysisScreen(ctx) {
       levelTable
     )
   );
+}
+
+function celebrateScreen(ctx) {
+  const data = pullCelebrate() || { mode: "test", runMode: "meaning", count: 0 };
+  const line = celebrateLine(data);
+
+  const confetti = el(
+    "div",
+    { class: "confettiWrap", ariaHidden: "true" },
+    ...Array.from({ length: 28 }).map(() =>
+      el("span", {
+        class: "confettiPiece",
+        style: `left:${Math.floor(Math.random() * 100)}%;animation-delay:${(Math.random() * 0.6).toFixed(2)}s;animation-duration:${(1.8 + Math.random() * 0.9).toFixed(2)}s;`
+      })
+    )
+  );
+
+  const body = el(
+    "div",
+    { class: "card stack celebrateCard" },
+    confetti,
+    el("img", { class: "celebrateImg", src: "./assets/chara/image_7.png", alt: "" }),
+    el("div", { class: "h2" }, "よくやった！"),
+    el("div", { class: "p celebrateLine" }, line),
+    el("button", { class: "btn btnPrimary", type: "button", onclick: () => go("#/home") }, "ホームに戻る")
+  );
+
+  ensureChirno(ctx).setEnabled(false);
+  return layout("完了！", body);
 }
 
 async function historyScreen() {
@@ -1714,6 +1786,7 @@ async function render() {
     }
     const ctx = ctxCache;
     const route = parseHash();
+    ensureChirno(ctx).setEnabled(!!ctx.settings.chirnoEnabled && route.path !== "/celebrate");
 
     // HOME表示時は通常待機（セリフは出しすぎないようにレート制限側で制御）
     if (route.path === "/home") {
@@ -1722,6 +1795,7 @@ async function render() {
     }
 
     if (route.path === "/home") return void setMain(homeScreen(ctx));
+    if (route.path === "/celebrate") return void setMain(celebrateScreen(ctx));
     if (route.path === "/history") return void setMain(await historyScreen());
     if (route.path === "/analysis") return void setMain(analysisScreen(ctx));
     if (route.path === "/settings") return void setMain(settingsScreen(ctx));
