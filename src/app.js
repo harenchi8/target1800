@@ -116,6 +116,18 @@ function sumTodayXp(historyItems) {
   return xp;
 }
 
+function hasTodayGoalDone(historyItems) {
+  const today = localDayKey(new Date());
+  for (const it of historyItems || []) {
+    if (it?.type !== "session_done") continue;
+    const t = it?.ts ? new Date(it.ts) : null;
+    if (!t || Number.isNaN(t.getTime())) continue;
+    if (localDayKey(t) !== today) continue;
+    if (it?.meta?.mode === "today") return true;
+  }
+  return false;
+}
+
 function computeTodayPlan(ctx) {
   const now = new Date();
   const allProgress = [...ctx.progressById.values()];
@@ -343,6 +355,7 @@ function homeScreen(ctx) {
   const historyItems = ctx._homeHistory || [];
   const streak = computeStreakDays(historyItems);
   const xpToday = sumTodayXp(historyItems);
+  const todayDone = hasTodayGoalDone(historyItems);
 
   const stats = el(
     "div",
@@ -359,36 +372,44 @@ function homeScreen(ctx) {
     el("span", { class: "pill" }, plan.total > 0 ? `今日はあと${plan.total}問でOK` : "🎉 今日分完了！")
   );
 
-  const hero = el(
-    "div",
-    { class: "card stack" },
-    el(
-      "button",
-      {
-        class: "btn btnHero",
-        type: "button",
-        onclick: () => {
-          const session = {
-            mode: "today",
-            runMode: "meaning",
-            filters: { levels: [], eiken: "all" },
-            order: "today",
-            wordIds: plan.wordIds,
-            idx: 0,
-            answerShown: false,
-            spellingChecked: false,
-            spellingWasCorrect: null
-          };
-          saveSession(session);
-          ensureChirno(ctx).say("cheer", { emotionKey: "cheer" });
-          logHistory("session_start", "今日の学習開始", { mode: "today", count: plan.wordIds.length });
-          go("#/test-meaning");
-        }
-      },
-      "🔥 今日の学習を開始"
-    ),
-    el("div", { class: "help" }, "今日の復習 → 弱点 → 新規10語を自動で出します。")
-  );
+  const hero = todayDone
+    ? el(
+        "div",
+        { class: "card stack" },
+        el("div", { class: "h2" }, "🎉 今日分完了！"),
+        el("div", { class: "p" }, "がんばったな！今日はもうOK！"),
+        el("div", { class: "help" }, "追加でやりたい場合は下の「テスト」や「弱点だけやる」から進められます。")
+      )
+    : el(
+        "div",
+        { class: "card stack" },
+        el(
+          "button",
+          {
+            class: "btn btnHero",
+            type: "button",
+            onclick: () => {
+              const session = {
+                mode: "today",
+                runMode: "meaning",
+                filters: { levels: [], eiken: "all" },
+                order: "today",
+                wordIds: plan.wordIds,
+                idx: 0,
+                answerShown: false,
+                spellingChecked: false,
+                spellingWasCorrect: null
+              };
+              saveSession(session);
+              ensureChirno(ctx).say("cheer", { emotionKey: "cheer" });
+              logHistory("session_start", "今日の学習開始", { mode: "today", count: plan.wordIds.length });
+              go("#/test-meaning");
+            }
+          },
+          "🔥 今日の学習を開始"
+        ),
+        el("div", { class: "help" }, "今日の復習 → 弱点 → 新規10語を自動で出します。")
+      );
 
   const sections = el(
     "div",
