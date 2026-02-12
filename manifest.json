@@ -1,6 +1,6 @@
 {
-  "name": "英単語学習（target1800）",
-  "short_name": "target1800",
+  "name": "チルノのパーフェクト英単語教室",
+  "short_name": "チルノ英単語",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -9,15 +9,27 @@
   "theme_color": "#111827",
   "icons": [
     {
-      "src": "./assets/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "./assets/pwa/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./assets/icon-maskable.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "./assets/pwa/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./assets/pwa/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./assets/pwa/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "maskable"
     }
   ]
